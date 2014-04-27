@@ -6,52 +6,39 @@
 #include "opengl.h"
 #include "Leap.h"
 
-using namespace Leap;
 using namespace std;
 
 
-Frame _first_frame;
-Controller* controller;
-Shader* shader;
-
-class Viewer {
+class LeapImage {
     GLuint texture;
+    Shader* shader;
+    string fname;
 
 public:
-    void scale_image(float s)
+    LeapImage(string fname): fname(fname)
     {
-        /* shader->set_uniform("scale", s); */
-        glutPostRedisplay();
-    }
-
-    void init_gl(int *argc, char *argv[])
-    {
-        glutInit(argc, argv);
-        glutCreateWindow("leapimage");
-
-        glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
-
-        glutDisplayFunc(glut_display);
-        glutKeyboardFunc(glut_keyboard);
-        glutIdleFunc(glut_idle);
-
-        glewInit();
-
-        load_image();
+        load_image(fname);
         load_shaders();
-
-        glClearColor(0,0,0,0);
     }
 
-    ~Viewer()
+    ~LeapImage()
     {
         delete shader;
     }
 
-private:
-    void load_image()
+    void rotate(float angle)
     {
-        string fname = "boat.jpg";
+        shader->set_uniform("rot", angle);
+    }
+
+    void scale(float s)
+    {
+        shader->set_uniform("scale", s);
+    }
+
+private:
+    void load_image(string fname)
+    {
         FreeImage_Initialise(1);
         FREE_IMAGE_FORMAT fif = FreeImage_GetFileType(fname.c_str(), 0);
         FIBITMAP *img = FreeImage_Load(fif, fname.c_str(), JPEG_DEFAULT);
@@ -85,87 +72,133 @@ private:
         glVertexAttribPointer(vertices_attrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
         shader->set_uniform("image", 0);
-        shader->set_uniform("scale", 1.0f);
-        shader->set_uniform("rot", 0.0f);
 
+        rotate(0.0f);
+        scale(1.0f);
+    }
+};
+
+
+class GlutViewer {
+
+    bool _fullscreen;
+    int _width, _height;
+    Leap::Controller* controller;
+    Leap::Frame _first_frame, current_frame;
+    LeapImage* image;
+
+public:
+    static GlutViewer* self;
+
+public:
+    GlutViewer(): _fullscreen(false)
+    {
+        controller = new Leap::Controller();
     }
 
-    static void glut_display()
+    ~GlutViewer()
     {
+        delete controller;
+    }
+
+    void init_gl(int *argc, char *argv[])
+    {
+        glutInit(argc, argv);
+        glutCreateWindow("leapimage");
+
+        glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+
+        glutDisplayFunc(_display);
+        glutKeyboardFunc(_keyboard);
+        glutIdleFunc(_idle);
+        glutReshapeFunc(_reshape);
+
+        glewInit();
+
+        glClearColor(0,0,0,0);
+    }
+
+    void set_image(LeapImage* leapimage)
+    {
+        image = leapimage;
+    }
+
+    void run()
+    {
+        glutMainLoop();
+    }
+
+    static void _display() { self->display(); }
+    static void _idle() { self->idle(); }
+    static void _keyboard(unsigned char key, int x, int y) { self->keyboard(key, x, y); }
+    static void _reshape(int w, int h) { self->reshape(w, h); }
+
+private:
+
+    void display()
+    {
+        cout << "display..." << endl;
         glClear(GL_COLOR_BUFFER_BIT);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         glutSwapBuffers();
     }
 
-    static void glut_keyboard(unsigned char key, int x, int y)
+    void keyboard(unsigned char key, int x, int y)
     {
-        /* shader->set_uniform("scale", 2.0f); */
+        switch (key)
+        {
+            case 'f':
+                if (!_fullscreen) {
+                    glutFullScreen();
+                } else {
+                    glutReshapeWindow(_width, _height);
+                }
+                _fullscreen = !_fullscreen;
+                break;
+        }
     }
 
-    static void glut_idle()
+    void reshape(int w, int h)
     {
+        cout << "reshape..." << endl;
+        _width = w;
+        _height = h;
+        glViewport(0,0, w, h);
+    }
+
+    void idle()
+    {
+        cout << "idle..." << endl;
         if (!_first_frame.isValid()) {
             _first_frame = controller->frame();
         } else {
-            Frame f = controller->frame();
+            current_frame = controller->frame();
 
-            float scale = f.scaleFactor(_first_frame);
-            float rotation = - f.rotationAngle(_first_frame);
+            float scale = current_frame.scaleFactor(_first_frame);
+            float angle = - current_frame.rotationAngle(_first_frame);
 
-            cout << "[leap] " << f.toString() << " -> " << scale << endl;
-
-            shader->set_uniform("scale", scale);
-            shader->set_uniform("rot", rotation);
-            /* viewer->scale_image(scale); */
+            image->scale(scale);
+            image->rotate(angle);
             glutPostRedisplay();
         }
     }
 };
 
-class ImageListener: public Listener {
 
-    Frame _first_frame;
-    Viewer* viewer;
-
-public:
-    ImageListener(Viewer* v): viewer(v) {}
-
-    /* virtual void onInit(const Controller &c) {} */
-    /* virtual void onConnect(const Controller &c) {} */
-    /* virtual void onDisconnect(const Controller &c) {} */
-    /* virtual void onExit(const Controller &c) {} */
-
-    virtual void onFrame(const Controller &c)
-    {
-        if (!_first_frame.isValid()) {
-            _first_frame = c.frame();
-        } else {
-            Frame f = c.frame();
-
-            float scale = f.scaleFactor(_first_frame);
-
-            /* cout << "[leap] " << f.toString() << " -> " << scale<< endl; */
-
-            viewer->scale_image(scale);
-        }
-    }
-};
+GlutViewer* GlutViewer::self = NULL;
 
 int main(int argc, char *argv[])
 {
-    controller = new Controller();
+    GlutViewer* viewer = new GlutViewer();
+    viewer->init_gl(&argc, argv); 
 
-    Viewer* v = new Viewer();
-    v->init_gl(&argc, argv); 
+    LeapImage* image = new LeapImage("boat.jpg");
+    viewer->set_image(image);
 
-    /* ImageListener listener(v); */
+    viewer->run();
 
-    /* c.addListener(listener); */
-
-    glutMainLoop();
-
-    /* c.removeListener(listener); */
-    delete v;
+    delete viewer;
+    delete image;
     
     return 0;
 }
