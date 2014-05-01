@@ -28,6 +28,19 @@ public:
     void unuse();
     void set_uniform(const char*, int);
     void set_uniform(const char*, float);
+    void set_uniform(const char*, int c, float*);
+};
+
+
+class Texture
+{
+    GLuint _id;
+
+    public:
+        Texture(void*, int, int);
+        ~Texture();
+        void bind();
+        void unbind();
 };
 
 #endif

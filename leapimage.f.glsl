@@ -6,13 +6,22 @@ out vec4 out_color;
 uniform sampler2D image;
 uniform float scale;
 uniform float rot;
+uniform vec3 trans;
 
 void main(void) {
 
-    mat2 scale_matrix = mat2(scale, 0, 0, scale);
-    mat2 rot_matrix = mat2(cos(rot), -sin(rot), sin(rot), cos(rot));
+    mat3 scale_matrix = mat3(scale, 0, 0,
+                             0, scale, 0,
+                             0, 0, 1);
+    mat3 rot_matrix = mat3(cos(rot), -sin(rot), 0,
+                           sin(rot), cos(rot), 0,
+                           0, 0, 1);
+    mat3 trans_matrix = mat3(1, 0, trans.x,
+                             0, 1, trans.z,
+                             0, 0, 1);
 
-    vec2 img_coord = inverse(scale_matrix * rot_matrix) * tex_coord;
+    vec3 img_coord_3 = inverse(scale_matrix * rot_matrix * trans_matrix) * vec3(tex_coord, 1);
+    vec2 img_coord = img_coord_3.xy;
 
     img_coord += 0.5;
 

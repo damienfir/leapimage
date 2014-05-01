@@ -59,6 +59,7 @@ Shader::Shader(const char *vs, const char *fs)
     _vs = compile(vs, GL_VERTEX_SHADER);
     _fs = compile(fs, GL_FRAGMENT_SHADER);
     _program = link(); 
+    use();
 }
 
 GLuint Shader::compile(const char *filename, GLenum type)
@@ -124,6 +125,10 @@ GLint Shader::get_uniform(const char* name)
     if (_uniforms.find(name) == _uniforms.end())
     {
         GLint uniform = glGetUniformLocation(_program, name);
+        if (uniform < 0)
+        {
+            cerr << "cannot get uniform: " << name << endl;
+        }
         _uniforms[name] = uniform;
     }
     return _uniforms[name];
@@ -137,6 +142,15 @@ void Shader::set_uniform(const char* name, int value)
 void Shader::set_uniform(const char* name, float value)
 {
     glUniform1f(get_uniform(name), value);
+}
+
+void Shader::set_uniform(const char* name, int c, float* value)
+{
+    if (c == 3)
+    {
+        glUniform3fv(get_uniform(name), 3, value);
+        cout << value[0] << value[1] << value[2] << endl;
+    }
 }
 
 /* void get_attribute(const char *name) */
@@ -168,4 +182,29 @@ void Shader::use()
     /* for (p = attributes.begin(); p != attributes.end(); ++p) { */
     /*  glEnableVertexAttribArray(p->second); */
     /* } */
+}
+
+
+Texture::Texture(void* data, int width, int height)
+{
+    glGenTextures(1, &_id);
+    bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+Texture::~Texture() {}
+
+void Texture::bind()
+{
+    glBindTexture(GL_TEXTURE_2D, _id);
+}
+
+void Texture::unbind()
+{
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
